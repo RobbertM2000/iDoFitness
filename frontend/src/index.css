@@ -1,0 +1,37 @@
+/* Design tokens — White Paper §12.1 */
+:root {
+  --bg: #FAFAF9;
+  --surface: #FFFFFF;
+  --text: #1C1917;
+  --text-muted: #6B7280;
+  --primary: #2563EB;
+  --success: #16A34A;
+  --warning: #D97706;
+  --danger: #DC2626;
+  --radius-card: 12px;
+  --radius-btn: 10px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1115;
+    --surface: #1A1D23;
+    --text: #E7E5E4;
+    --text-muted: #9CA3AF;
+    --primary: #3B82F6;
+    --success: #22C55E;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 Inter, system-ui, -apple-system, sans-serif;
+}
+
+label { font-size: 14px; font-weight: 500; }
