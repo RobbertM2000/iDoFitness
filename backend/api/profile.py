@@ -114,23 +114,69 @@ def get_profile():
 @profile_bp.route("/profile", methods=["PATCH"])
 @login_required
 def patch_profile():
-    """Partial update — e.g. changing global_goal later from Settings (§4.2 scherm 4 footnote)."""
+    """Partial update — editing the profile later from Settings (§4.2 scherm 4 footnote).
+
+    Mirrors validate_onboarding's rules per-field, but only for keys present
+    in the request body (BR-10: server leads, same rules as onboarding).
+    """
     data = request.get_json(silent=True) or {}
     user = current_user
+    fields = {}
 
-    if "global_goal" in data:
-        if data["global_goal"] not in VALID_GOALS:
-            body, status = error_response(
-                "VALIDATION_ERROR", "Ongeldig doel", {"global_goal": "hypertrophy of strength"}
-            )
-            return jsonify(body), status
-        user.global_goal = data["global_goal"]
+    if "global_goal" in data and data["global_goal"] not in VALID_GOALS:
+        fields["global_goal"] = "Kies hypertrofie of kracht"
+
+    if "experience" in data and data["experience"] not in VALID_EXPERIENCE:
+        fields["experience"] = "Kies een ervaringsniveau"
+
+    if "days_per_week" in data:
+        days = data["days_per_week"]
+        if not isinstance(days, int) or not (1 <= days <= 7):
+            fields["days_per_week"] = "1-7 dagen"
+
+    if "session_minutes" in data and data["session_minutes"] not in VALID_SESSION_MINUTES:
+        fields["session_minutes"] = "Ongeldige sessieduur"
+
+    if "training_location" in data and data["training_location"] not in VALID_LOCATION:
+        fields["training_location"] = "Kies sportschool, thuis of beide"
+
+    resulting_location = data.get("training_location", user.training_location)
+    if "equipment" in data and resulting_location in ("home", "both"):
+        equipment = data.get("equipment")
+        if not isinstance(equipment, list) or len(equipment) == 0:
+            fields["equipment"] = "Kies minstens één apparatuur-optie"
+
+    if "unit_preference" in data and data["unit_preference"] not in ("kg", "lbs"):
+        fields["unit_preference"] = "kg of lbs"
+
+    if fields:
+        body, status = error_response("VALIDATION_ERROR", "Controleer de invoer", fields)
+        return jsonify(body), status
 
     if "display_name" in data:
         user.display_name = (data["display_name"] or "").strip() or None
-
-    if "unit_preference" in data and data["unit_preference"] in ("kg", "lbs"):
+    if "global_goal" in data:
+        user.global_goal = data["global_goal"]
+    if "experience" in data:
+        user.experience = data["experience"]
+    if "days_per_week" in data:
+        user.days_per_week = data["days_per_week"]
+    if "session_minutes" in data:
+        user.session_minutes = data["session_minutes"]
+    if "training_location" in data:
+        user.training_location = data["training_location"]
+    if "unit_preference" in data:
         user.unit_preference = data["unit_preference"]
+
+    if "training_location" in data or "equipment" in data:
+        UserEquipment.query.filter_by(user_id=user.id).delete()
+        if user.training_location == "gym":
+            equipment_rows = Equipment.query.all()
+        else:
+            names = data.get("equipment", [])
+            equipment_rows = Equipment.query.filter(Equipment.name.in_(names)).all()
+        for eq in equipment_rows:
+            db.session.add(UserEquipment(user_id=user.id, equipment_id=eq.id))
 
     db.session.commit()
     return jsonify({"user": user.to_public_dict()}), 200

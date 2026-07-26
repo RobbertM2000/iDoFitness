@@ -126,6 +126,57 @@ def test_patch_profile_rejects_invalid_goal(client):
     assert resp.status_code == 422
 
 
+def test_get_profile_includes_equipment(client):
+    payload = {**VALID_ONBOARDING, "training_location": "home", "equipment": ["dumbbell", "bench"]}
+    client.post("/api/onboarding", json=payload)
+    resp = client.get("/api/profile")
+    assert sorted(resp.get_json()["user"]["equipment"]) == ["bench", "dumbbell"]
+
+
+def test_patch_profile_updates_full_settings(client):
+    client.post("/api/onboarding", json=VALID_ONBOARDING)
+    resp = client.patch("/api/profile", json={
+        "display_name": "Sanne Updated",
+        "global_goal": "hypertrophy",
+        "experience": "beginner",
+        "days_per_week": 3,
+        "session_minutes": 45,
+        "training_location": "home",
+        "equipment": ["dumbbell"],
+    })
+    assert resp.status_code == 200
+    user = resp.get_json()["user"]
+    assert user["display_name"] == "Sanne Updated"
+    assert user["experience"] == "beginner"
+    assert user["days_per_week"] == 3
+    assert user["session_minutes"] == 45
+    assert user["training_location"] == "home"
+    assert user["equipment"] == ["dumbbell"]
+
+
+def test_patch_profile_rejects_home_without_equipment(client):
+    client.post("/api/onboarding", json=VALID_ONBOARDING)
+    resp = client.patch("/api/profile", json={"training_location": "home", "equipment": []})
+    assert resp.status_code == 422
+    assert "equipment" in resp.get_json()["error"]["fields"]
+
+
+def test_patch_profile_rejects_invalid_days(client):
+    client.post("/api/onboarding", json=VALID_ONBOARDING)
+    resp = client.patch("/api/profile", json={"days_per_week": 9})
+    assert resp.status_code == 422
+    assert "days_per_week" in resp.get_json()["error"]["fields"]
+
+
+def test_patch_profile_gym_grants_all_equipment(client):
+    payload = {**VALID_ONBOARDING, "training_location": "home", "equipment": ["dumbbell"]}
+    client.post("/api/onboarding", json=payload)
+    resp = client.patch("/api/profile", json={"training_location": "gym"})
+    assert resp.status_code == 200
+    names = resp.get_json()["user"]["equipment"]
+    assert "barbell" in names and "dumbbell" in names
+
+
 def test_list_equipment(client):
     resp = client.get("/api/equipment")
     assert resp.status_code == 200

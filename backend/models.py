@@ -79,6 +79,13 @@ class User(TimestampMixin, UserMixin, db.Model):
 
     def to_public_dict(self) -> dict:
         """Fields safe to send to the client (never password_hash)."""
+        equipment_names = (
+            db.session.query(Equipment.name)
+            .join(UserEquipment, UserEquipment.equipment_id == Equipment.id)
+            .filter(UserEquipment.user_id == self.id)
+            .order_by(Equipment.name)
+            .all()
+        )
         return {
             "id": self.id,
             "username": self.username,
@@ -93,6 +100,7 @@ class User(TimestampMixin, UserMixin, db.Model):
             "days_per_week": self.days_per_week,
             "session_minutes": self.session_minutes,
             "training_location": self.training_location,
+            "equipment": [name for (name,) in equipment_names],
             "onboarding_completed": self.onboarding_completed,
             "unit_preference": self.unit_preference,
         }
