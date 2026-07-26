@@ -3,6 +3,7 @@ const TABS = [
   { key: "log", icon: "✍️", label: "Log" },
   { key: "suggestion", icon: "⚡", label: "Suggestie" },
   { key: "history", icon: "📜", label: "Historie" },
+  { key: "settings", icon: "⚙️", label: "Instellingen" },
 ];
 
 export default function BottomNav({ active, onChange }) {

@@ -6,6 +6,7 @@ import OnboardingWizard from "./features/onboarding/OnboardingWizard";
 import Logger from "./features/logger/Logger";
 import History from "./features/history/History";
 import WorkoutSuggestion from "./features/suggestion/WorkoutSuggestion";
+import SettingsScreen from "./features/settings/SettingsScreen";
 import BottomNav from "./components/BottomNav";
 
 function HomeScreen({ user, logout }) {
@@ -28,7 +29,7 @@ function HomeScreen({ user, logout }) {
 function AuthGate() {
   const { user, loading, logout } = useAuth();
   const [authMode, setAuthMode] = useState("register"); // "register" | "login"
-  const [tab, setTab] = useState("home"); // "home" | "log" | "history"
+  const [tab, setTab] = useState("home"); // "home" | "log" | "suggestion" | "history" | "settings"
 
   if (loading) {
     return <p style={{ padding: 24 }}>Laden…</p>;
@@ -52,6 +53,7 @@ function AuthGate() {
       {tab === "log" && <Logger />}
       {tab === "suggestion" && <WorkoutSuggestion onGoToLog={() => setTab("log")} />}
       {tab === "history" && <History />}
+      {tab === "settings" && <SettingsScreen onBack={() => setTab("home")} />}
       <BottomNav active={tab} onChange={setTab} />
     </>
   );
