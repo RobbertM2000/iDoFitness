@@ -301,8 +301,4 @@ iDoFitness demonstrates **full-stack web development** (React, Flask, PostgreSQL
 
 The app is deployed, tested, and ready for use. Whether scaled to thousands of users or used as a reference architecture for other coaching applications, iDoFitness proves that **transparent, evidence-based recommendations outperform black-box ML** in domains where users need to understand *why* they're being advised.
 
----
 
-**Questions?** See the [White Paper](./iDoFitness_White_Paper.md) for exhaustive technical spec. See [PREDICTOR_INTEGRATION.md](./backend/PREDICTOR_INTEGRATION.md) for API contract details.
-
-**To contribute:** Fork the repo, make a branch, add tests for any change, and submit a pull request. Ensure all tests pass (`py -m pytest tests/ -v`).
