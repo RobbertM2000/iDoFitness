@@ -1,29 +1,106 @@
-const RPE_OPTIONS = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
+const RPE_MIN = 1;
+const RPE_MAX = 10;
+const RPE_STEP = 0.5;
 
-function rpeTargetLabel(suggestion) {
-  if (!suggestion || suggestion.rpe_target_min == null) return null;
-  const { rpe_target_min, rpe_target_max } = suggestion;
-  return rpe_target_min === rpe_target_max
-    ? `RPE ${rpe_target_min}`
-    : `RPE ${rpe_target_min}-${rpe_target_max}`;
+function clampRpe(v) {
+  return Math.min(RPE_MAX, Math.max(RPE_MIN, v));
 }
 
-function rpeHitResult(set, suggestion) {
-  if (!suggestion || set.rpe === "" || suggestion.rpe_target_min == null) return null;
-  const rpe = Number(set.rpe);
+function stepRpe(current, suggestion, delta) {
+  const base = current != null && !Number.isNaN(current) ? current : suggestion?.rpe ?? 7;
+  return clampRpe(Math.round((base + delta) / RPE_STEP) * RPE_STEP);
+}
+
+function rpeHitResult(rpeValue, suggestion) {
+  if (!suggestion || rpeValue === "" || suggestion.rpe_target_min == null) return null;
+  const rpe = Number(rpeValue);
   const { rpe_target_min, rpe_target_max } = suggestion;
   if (rpe >= rpe_target_min && rpe <= rpe_target_max) {
-    return { text: "✓ RPE-doel gehaald", color: "var(--success)" };
+    return { text: "✓ Doel gehaald!", color: "var(--success)", hit: true };
   }
   return rpe < rpe_target_min
-    ? { text: "Onder RPE-doel", color: "var(--text-muted)" }
-    : { text: "Boven RPE-doel", color: "var(--warning)" };
+    ? { text: "Onder RPE-doel", color: "var(--text-muted)", hit: false }
+    : { text: "Boven RPE-doel", color: "var(--warning)", hit: false };
 }
+
+function RpeControl({ set, suggestion, done, onChange }) {
+  const hasValue = set.rpe !== "";
+  const numeric = hasValue ? Number(set.rpe) : null;
+  const live = rpeHitResult(set.rpe, suggestion);
+
+  const adjust = (delta) => {
+    if (done) return;
+    onChange({ rpe: String(stepRpe(numeric, suggestion, delta)) });
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      <div
+        style={{
+          display: "flex", alignItems: "center", flexShrink: 0,
+          border: "1px solid var(--text-muted)", borderRadius: 8,
+          height: 36, overflow: "hidden",
+        }}
+      >
+        <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", padding: "0 2px 0 4px" }}>
+          RPE
+        </span>
+        <button
+          type="button"
+          onClick={() => adjust(-RPE_STEP)}
+          disabled={done}
+          aria-label="RPE omlaag"
+          style={rpeStepButtonStyle}
+        >
+          −
+        </button>
+        <input
+          className="rpe-input"
+          type="number"
+          inputMode="decimal"
+          step={RPE_STEP}
+          min={RPE_MIN}
+          max={RPE_MAX}
+          placeholder={suggestion?.rpe != null ? String(suggestion.rpe) : "–"}
+          value={set.rpe}
+          disabled={done}
+          onChange={(e) => onChange({ rpe: e.target.value })}
+          style={{
+            width: 24, height: "100%", border: "none", background: "transparent",
+            textAlign: "center", fontSize: 13, fontWeight: 600, padding: 0,
+            color: done ? "var(--text)" : hasValue ? "var(--primary)" : "var(--text-muted)",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => adjust(RPE_STEP)}
+          disabled={done}
+          aria-label="RPE omhoog"
+          style={rpeStepButtonStyle}
+        >
+          +
+        </button>
+      </div>
+
+      {live?.hit && (
+        <span title="RPE-doel gehaald" style={{ color: "var(--success)", fontSize: 14, flexShrink: 0 }}>
+          ✓
+        </span>
+      )}
+    </div>
+  );
+}
+
+const rpeStepButtonStyle = {
+  width: 16, height: "100%", flexShrink: 0, border: "none", padding: 0,
+  background: "var(--surface)", color: "var(--text-muted)", fontSize: 14,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+};
 
 export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
   const done = set.completed;
   const suggestion = set.suggestion;
-  const hit = done ? rpeHitResult(set, suggestion) : null;
+  const hit = done ? rpeHitResult(set.rpe, suggestion) : null;
 
   return (
     <div
@@ -33,8 +110,8 @@ export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
         borderRadius: 8, marginBottom: 4,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ width: 18, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", rowGap: 6 }}>
+        <span style={{ width: 16, fontSize: 13, color: "var(--text-muted)", textAlign: "center", flexShrink: 0 }}>
           {index + 1}
         </span>
 
@@ -45,7 +122,7 @@ export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
           value={set.weight_kg}
           disabled={done}
           onChange={(e) => onChange({ weight_kg: e.target.value })}
-          style={cellInputStyle}
+          style={{ ...cellInputStyle, width: 52 }}
         />
         <input
           type="number"
@@ -54,20 +131,10 @@ export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
           value={set.reps}
           disabled={done}
           onChange={(e) => onChange({ reps: e.target.value })}
-          style={{ ...cellInputStyle, width: 56 }}
+          style={{ ...cellInputStyle, width: 58, padding: "0 6px" }}
         />
 
-        <select
-          value={set.rpe}
-          disabled={done}
-          onChange={(e) => onChange({ rpe: e.target.value })}
-          style={{ ...cellInputStyle, width: 64 }}
-        >
-          <option value="">{rpeTargetLabel(suggestion) || "RPE"}</option>
-          {RPE_OPTIONS.map((v) => (
-            <option key={v} value={v}>{v}</option>
-          ))}
-        </select>
+        <RpeControl set={set} suggestion={suggestion} done={done} onChange={onChange} />
 
         <button
           type="button"
@@ -101,7 +168,7 @@ export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
       </div>
 
       {hit && (
-        <div style={{ fontSize: 11, color: hit.color, marginLeft: 26, marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: hit.color, marginLeft: 22, marginTop: 2 }}>
           {hit.text}
         </div>
       )}
@@ -110,7 +177,7 @@ export default function SetRow({ set, index, onChange, onComplete, onRemove }) {
 }
 
 const cellInputStyle = {
-  width: 64, height: 36, padding: "0 8px", borderRadius: 8,
+  height: 36, padding: "0 8px", borderRadius: 8,
   border: "1px solid var(--text-muted)", background: "var(--surface)",
   color: "var(--text)", fontSize: 15,
 };

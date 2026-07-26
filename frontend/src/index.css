@@ -37,3 +37,14 @@ body {
 label { font-size: 14px; font-weight: 500; }
 
 input::placeholder { color: var(--text-muted); opacity: 1; }
+
+/* RPE stepper has its own −/+ buttons — hide the native number spinner so
+   there's only one set of controls (and no browser-drawn arrow/chevron). */
+.rpe-input::-webkit-outer-spin-button,
+.rpe-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.rpe-input {
+  -moz-appearance: textfield;
+}
