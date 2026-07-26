@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from engine.predictor import (
     SessionLog, SetLog, UserProfile, ExerciseProfile, get_recommendation,
 )
+from helpers import error_response
 from models import db, Workout, WorkoutExercise, Set, Exercise
 
 bp = Blueprint('recommendations', __name__, url_prefix='/api')
@@ -38,9 +39,15 @@ def _sessions_for_exercise(user_id: int, exercise_id: int) -> list[SessionLog]:
             )
         workouts_dict[date_key].sets.append(
             SetLog(
-                weight_kg=set_row.weight_kg,
+                # Numeric DB columns come back as Decimal — SetLog is typed
+                # `float`, and predictor.py's arithmetic (round_to_plate,
+                # weight * pct, etc.) raises TypeError mixing Decimal with
+                # the float literals it uses, so this cast is required, not
+                # cosmetic (matches the same float() cast api/workouts.py
+                # already does at its own DB boundary).
+                weight_kg=float(set_row.weight_kg),
                 reps=set_row.reps,
-                rpe=set_row.rpe,
+                rpe=float(set_row.rpe) if set_row.rpe is not None else None,
                 is_warmup=set_row.is_warmup or False,
             )
         )
@@ -54,12 +61,16 @@ def get_exercise_recommendation():
     """GET /api/recommendation?exercise_id=1"""
     exercise_id = request.args.get('exercise_id', type=int)
     if not exercise_id:
-        return jsonify({'error': 'exercise_id required'}), 400
+        body, status = error_response(
+            "VALIDATION_ERROR", "exercise_id is verplicht", {"exercise_id": "Verplicht"}, status=400
+        )
+        return jsonify(body), status
 
     user = current_user
-    exercise = Exercise.query.get(exercise_id)
+    exercise = db.session.get(Exercise, exercise_id)
     if not exercise:
-        return jsonify({'error': 'exercise not found'}), 404
+        body, status = error_response("NOT_FOUND", "Oefening niet gevonden", status=404)
+        return jsonify(body), status
 
     profile = UserProfile(
         global_goal=getattr(user, 'global_goal', 'hypertrophy') or 'hypertrophy',

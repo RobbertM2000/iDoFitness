@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
 import { inputStyle, PrimaryButton, OptionCard } from "../onboarding/OnboardingShell";
 import FieldError from "../../components/FieldError";
 import Spinner from "../../components/Spinner";
@@ -89,6 +90,7 @@ function validate(form) {
 }
 
 export default function SettingsScreen({ onBack }) {
+  const { setUser } = useAuth();
   const [form, setForm] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [equipmentOptions, setEquipmentOptions] = useState([]);
@@ -147,7 +149,7 @@ export default function SettingsScreen({ onBack }) {
     setErrors({});
     setSaving(true);
     try {
-      await api.patch("/profile", {
+      const data = await api.patch("/profile", {
         display_name: form.display_name.trim() || null,
         global_goal: form.global_goal,
         experience: form.experience,
@@ -156,6 +158,7 @@ export default function SettingsScreen({ onBack }) {
         training_location: form.training_location,
         equipment: form.training_location === "gym" ? [] : form.equipment,
       });
+      setUser(data.user);
       setShowToast(true);
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields || {}).length) {

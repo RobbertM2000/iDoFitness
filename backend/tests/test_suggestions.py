@@ -5,6 +5,7 @@ import pytest
 
 from app import create_app
 from extensions import db
+from models import Exercise
 from seed import seed_equipment, seed_muscle_groups, seed_exercises
 
 VALID_USER = {
@@ -66,6 +67,52 @@ def test_workout_suggestion_requires_login():
     resp = app.test_client().get("/api/workout-suggestion")
     assert resp.status_code == 401
     assert resp.get_json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_workout_suggestion_with_trained_compound_exercise(app, client):
+    """Regression test for the real-world crash: Set.weight_kg/rpe are
+    Numeric (Decimal) DB columns. Once a compound exercise has real
+    history, its Decimal weight_kg reached _build_warmup's
+    round_to_plate(), which does `weight_kg / 2.5` — Decimal/float raises
+    TypeError, so any returning user with logged history on their
+    first-ranked compound lift got a hard 500 (the actual root cause
+    behind the "Er ging iets mis" reports, not just an edge case).
+
+    Calls generate_wod directly with a single-candidate list built from
+    real DB history, so this doesn't depend on the exercise-selection
+    ranking happening to pick the trained exercise first.
+    """
+    from api.recommendations import _sessions_for_exercise
+    from engine.predictor import UserProfile
+    from engine.wod_generator import ExerciseInfo, generate_wod
+
+    bench_id = Exercise.query.filter_by(name="Flat DB Press").first().id
+    resp = client.post("/api/workouts", json={
+        "performed_at": "2026-07-20T18:00:00Z",
+        "duration_sec": 2000,
+        "source": "manual",
+        "exercises": [{
+            "exercise_id": bench_id,
+            "sets": [
+                {"weight_kg": 22.5, "reps": 8, "rpe": 7.5},
+                {"weight_kg": 22.5, "reps": 8, "rpe": 8},
+            ],
+        }],
+    })
+    assert resp.status_code == 201
+
+    with app.app_context():
+        candidates = [ExerciseInfo(
+            exercise_id=bench_id, name="Flat DB Press", muscle_group="chest",
+            is_compound=True, is_main_lift=False,
+        )]
+        histories = {bench_id: _sessions_for_exercise(1, bench_id)}
+        wod = generate_wod(candidates, histories, UserProfile(global_goal="hypertrophy"), 60)
+
+    trained = next(e for e in wod.exercises if e.exercise_id == bench_id)
+    assert isinstance(trained.weight_kg, (int, float))
+    for ramp in wod.warmup.ramp_sets:
+        assert isinstance(ramp["weight_kg"], (int, float))
 
 
 def test_workout_suggestion_engine_failure_returns_json_error(client):
