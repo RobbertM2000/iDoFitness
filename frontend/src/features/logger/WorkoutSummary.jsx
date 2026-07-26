@@ -8,7 +8,7 @@ export default function WorkoutSummary({ result, onDone }) {
   const { workout, summary } = result;
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto", padding: 24, textAlign: "center" }}>
+    <div style={{ maxWidth: 420, margin: "0 auto", padding: "24px 24px 88px", textAlign: "center" }}>
       <div style={{ fontSize: 40 }}>🎉</div>
       <h2 style={{ fontSize: 22, fontWeight: 600, margin: "8px 0" }}>Workout voltooid</h2>
       <p style={{ color: "var(--text-muted)" }}>{workout.title || "Workout"}</p>
