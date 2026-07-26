@@ -1,4 +1,6 @@
 """Tests for GET /api/workout-suggestion. Run with: py -m pytest"""
+from unittest.mock import patch
+
 import pytest
 
 from app import create_app
@@ -55,3 +57,26 @@ def test_workout_suggestion_includes_wod_id_and_is_compound(client):
     assert len(body["exercises"]) > 0
     for exercise in body["exercises"]:
         assert "is_compound" in exercise
+
+
+def test_workout_suggestion_requires_login():
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+    resp = app.test_client().get("/api/workout-suggestion")
+    assert resp.status_code == 401
+    assert resp.get_json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_workout_suggestion_engine_failure_returns_json_error(client):
+    """An unexpected exception anywhere in the generation pipeline must
+    still produce the app's normal JSON error envelope — never Flask's
+    default HTML error page, which the frontend can't parse (and which is
+    exactly what used to surface as an opaque "Er ging iets mis")."""
+    with patch("api.suggestions.generate_wod", side_effect=RuntimeError("boom")):
+        resp = client.get("/api/workout-suggestion")
+    assert resp.status_code == 500
+    body = resp.get_json()
+    assert body is not None
+    assert body["error"]["code"] == "SUGGESTION_FAILED"
+    assert body["error"]["message"]

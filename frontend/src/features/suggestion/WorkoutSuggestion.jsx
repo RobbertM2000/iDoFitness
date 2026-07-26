@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import { useWorkoutContext } from "../../context/WorkoutContext";
+import Spinner from "../../components/Spinner";
+
+const FALLBACK_ERROR_MESSAGE =
+  "Workout kan niet geladen worden. Zorg dat je ingelogd bent en probeer opnieuw.";
 
 function formatRest(sec) {
   const min = Math.floor(sec / 60);
@@ -20,22 +24,57 @@ export default function WorkoutSuggestion({ onGoToLog }) {
   const [error, setError] = useState("");
   const { setSuggestedWorkout } = useWorkoutContext();
 
-  useEffect(() => {
+  const loadSuggestion = () => {
     setLoading(true);
     setError("");
     api
       .get("/workout-suggestion")
       .then(setWod)
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Kon geen workout genereren"))
+      .catch((e) => {
+        // Always logged, regardless of what the user sees — the generic
+        // fallback message below intentionally hides the raw error, so the
+        // console is the only place to see what actually went wrong.
+        console.error("Kon workout-suggestie niet laden:", e);
+        const message =
+          e instanceof ApiError && e.message && e.code !== undefined
+            ? e.message
+            : FALLBACK_ERROR_MESSAGE;
+        setError(message);
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadSuggestion();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
-    return <p style={{ padding: 24, color: "var(--text-muted)" }}>Workout genereren…</p>;
+    return (
+      <div style={{ padding: 24, textAlign: "center" }}>
+        <Spinner />
+        <p style={{ color: "var(--text-muted)", marginTop: 12 }}>Workout genereren…</p>
+      </div>
+    );
   }
 
   if (error) {
-    return <p style={{ padding: 24, color: "var(--danger)" }}>{error}</p>;
+    return (
+      <div style={{ padding: 24, textAlign: "center" }}>
+        <p style={{ color: "var(--danger)", marginBottom: 16 }}>{error}</p>
+        <button
+          type="button"
+          onClick={loadSuggestion}
+          style={{
+            padding: "10px 24px", borderRadius: 10, border: "none",
+            background: "var(--primary)", color: "#fff", fontSize: 15, fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Opnieuw proberen
+        </button>
+      </div>
+    );
   }
 
   if (!wod || wod.exercises.length === 0) {
