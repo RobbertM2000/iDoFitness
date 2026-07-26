@@ -79,6 +79,19 @@ def test_create_workout_rejects_empty_exercises(client):
     assert resp.status_code == 422
 
 
+def test_create_workout_stores_suggested_from_wod_id(client, bench_id):
+    payload = {**workout_payload(bench_id), "suggested_from_wod_id": "2026-07-26:strength"}
+    resp = client.post("/api/workouts", json=payload)
+    assert resp.status_code == 201
+    assert resp.get_json()["workout"]["suggested_from_wod_id"] == "2026-07-26:strength"
+
+
+def test_create_workout_without_suggestion_has_null_wod_id(client, bench_id):
+    resp = client.post("/api/workouts", json=workout_payload(bench_id))
+    assert resp.status_code == 201
+    assert resp.get_json()["workout"]["suggested_from_wod_id"] is None
+
+
 def test_create_workout_rejects_invalid_reps(client, bench_id):
     payload = workout_payload(bench_id)
     payload["exercises"][0]["sets"][0]["reps"] = 0

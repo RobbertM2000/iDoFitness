@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { WorkoutProvider, useWorkoutContext } from "./context/WorkoutContext";
 import RegisterScreen from "./features/auth/RegisterScreen";
 import LoginScreen from "./features/auth/LoginScreen";
 import OnboardingWizard from "./features/onboarding/OnboardingWizard";
@@ -27,6 +28,7 @@ function HomeScreen({ user, logout }) {
 
 function AuthGate() {
   const { user, loading, logout } = useAuth();
+  const { suggestedWorkout, clearSuggestedWorkout } = useWorkoutContext();
   const [authMode, setAuthMode] = useState("register"); // "register" | "login"
   const [tab, setTab] = useState("home"); // "home" | "log" | "history"
 
@@ -49,7 +51,9 @@ function AuthGate() {
   return (
     <>
       {tab === "home" && <HomeScreen user={user} logout={logout} />}
-      {tab === "log" && <Logger />}
+      {tab === "log" && (
+        <Logger suggestedWorkout={suggestedWorkout} clearSuggestedWorkout={clearSuggestedWorkout} />
+      )}
       {tab === "suggestion" && <WorkoutSuggestion onGoToLog={() => setTab("log")} />}
       {tab === "history" && <History />}
       <BottomNav active={tab} onChange={setTab} />
@@ -60,7 +64,9 @@ function AuthGate() {
 export default function App() {
   return (
     <AuthProvider>
-      <AuthGate />
+      <WorkoutProvider>
+        <AuthGate />
+      </WorkoutProvider>
     </AuthProvider>
   );
 }

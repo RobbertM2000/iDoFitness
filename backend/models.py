@@ -199,6 +199,10 @@ class Workout(TimestampMixin, db.Model):
     source = db.Column(db.String(12))
     client_uuid = db.Column(db.String(36), unique=True)
     deleted_at = db.Column(db.DateTime(timezone=True))
+    # Tags a workout with the WOD it was started from (date+goal composite,
+    # see api/suggestions.py's `wod_id`) — WODs aren't persisted, so this is
+    # a lightweight breadcrumb for analytics later, not a real FK.
+    suggested_from_wod_id = db.Column(db.String(40))
 
     exercises = db.relationship(
         "WorkoutExercise",

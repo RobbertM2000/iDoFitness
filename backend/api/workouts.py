@@ -119,6 +119,7 @@ def create_workout():
         notes=data.get("notes"),
         source=data.get("source", "manual"),
         client_uuid=client_uuid,
+        suggested_from_wod_id=data.get("suggested_from_wod_id") or None,
     )
     db.session.add(workout)
     db.session.flush()  # assigns workout.id without committing yet
@@ -224,6 +225,7 @@ def _workout_response(workout: Workout, new_prs=None) -> dict:
             "title": workout.title,
             "notes": workout.notes,
             "source": workout.source,
+            "suggested_from_wod_id": workout.suggested_from_wod_id,
             "exercises": exercises_out,
         },
         "summary": {

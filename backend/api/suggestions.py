@@ -79,6 +79,10 @@ def get_workout_suggestion():
     wod = generate_wod(candidates, histories, profile, session_minutes)
 
     return jsonify({
+        # Not a persisted row — WODs are generated on the fly — so this is a
+        # date+goal composite the frontend can round-trip back as
+        # Workout.suggested_from_wod_id when the user logs this WOD (§6.1).
+        'wod_id': f"{wod.date.isoformat()}:{wod.goal}",
         'date': wod.date.isoformat(),
         'goal': wod.goal,
         'title': wod.title,
@@ -94,6 +98,7 @@ def get_workout_suggestion():
                 'order': e.order,
                 'exercise_id': e.exercise_id,
                 'name': e.name,
+                'is_compound': e.is_compound,
                 'sets': e.sets,
                 'reps_min': e.reps_min,
                 'reps_max': e.reps_max,

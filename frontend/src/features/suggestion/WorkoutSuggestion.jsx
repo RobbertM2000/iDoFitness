@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../api/client";
+import { useWorkoutContext } from "../../context/WorkoutContext";
 
 function formatRest(sec) {
   const min = Math.floor(sec / 60);
@@ -17,6 +18,7 @@ export default function WorkoutSuggestion({ onGoToLog }) {
   const [wod, setWod] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { setSuggestedWorkout } = useWorkoutContext();
 
   useEffect(() => {
     setLoading(true);
@@ -113,7 +115,10 @@ export default function WorkoutSuggestion({ onGoToLog }) {
       </div>
 
       <button
-        onClick={onGoToLog}
+        onClick={() => {
+          setSuggestedWorkout(wod);
+          onGoToLog();
+        }}
         style={{
           width: "100%", padding: 14, borderRadius: 10, border: "none",
           background: "var(--primary)", color: "#fff", fontSize: 16, fontWeight: 600,
