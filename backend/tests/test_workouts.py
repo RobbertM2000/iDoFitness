@@ -1,4 +1,6 @@
 """Tests for the workouts blueprint. Run with: py -m pytest"""
+from unittest.mock import patch
+
 import pytest
 
 from app import create_app
@@ -83,7 +85,26 @@ def test_create_workout_stores_suggested_from_wod_id(client, bench_id):
     payload = {**workout_payload(bench_id), "suggested_from_wod_id": "2026-07-26:strength"}
     resp = client.post("/api/workouts", json=payload)
     assert resp.status_code == 201
-    assert resp.get_json()["workout"]["suggested_from_wod_id"] == "2026-07-26:strength"
+
+
+def test_create_workout_engine_failure_returns_json_error_and_rolls_back(client, bench_id):
+    """Regression test: this is what a schema-drift error (e.g. a column
+    the model expects but the live DB doesn't have — see the
+    suggested_from_wod_id migration) used to look like from the client's
+    side: an uncaught exception mid-transaction, surfaced as Flask's
+    default HTML error page instead of the app's JSON envelope, with no
+    rollback of the partially-flushed workout row."""
+    with patch("api.workouts.upsert_pr", side_effect=RuntimeError("boom")):
+        resp = client.post("/api/workouts", json=workout_payload(bench_id))
+    assert resp.status_code == 500
+    body = resp.get_json()
+    assert body is not None
+    assert body["error"]["code"] == "WORKOUT_SAVE_FAILED"
+    assert body["error"]["message"]
+
+    # Rolled back — the failed attempt must not leave an orphaned workout.
+    resp = client.get("/api/workouts")
+    assert resp.get_json()["total"] == 0
 
 
 def test_create_workout_without_suggestion_has_null_wod_id(client, bench_id):

@@ -7,7 +7,7 @@ creates a duplicate workout).
 import re
 from datetime import datetime, timezone
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 from flask_login import login_required, current_user
 
 from extensions import db
@@ -111,87 +111,105 @@ def create_workout():
         )
         return jsonify(body), status
 
-    workout = Workout(
-        user_id=current_user.id,
-        performed_at=performed_at,
-        duration_sec=data.get("duration_sec"),
-        title=data.get("title"),
-        notes=data.get("notes"),
-        source=data.get("source", "manual"),
-        client_uuid=client_uuid,
-        suggested_from_wod_id=data.get("suggested_from_wod_id") or None,
-    )
-    db.session.add(workout)
-    db.session.flush()  # assigns workout.id without committing yet
-
-    new_prs = []
-    achieved_date = performed_at.date()
-
-    for position, ex_data in enumerate(data["exercises"], start=1):
-        we = WorkoutExercise(
-            workout_id=workout.id,
-            exercise_id=ex_data["exercise_id"],
-            position=position,
-            notes=ex_data.get("notes"),
+    # Wrapped in a catch-all: same rationale as get_workout_suggestion — an
+    # uncaught exception mid-transaction would otherwise surface as Flask's
+    # default HTML error page (unparseable JSON on the frontend) and leave
+    # a half-flushed transaction. Roll back, log the real traceback, and
+    # still hand the client the app's normal JSON error envelope.
+    try:
+        workout = Workout(
+            user_id=current_user.id,
+            performed_at=performed_at,
+            duration_sec=data.get("duration_sec"),
+            title=data.get("title"),
+            notes=data.get("notes"),
+            source=data.get("source", "manual"),
+            client_uuid=client_uuid,
+            suggested_from_wod_id=data.get("suggested_from_wod_id") or None,
         )
-        db.session.add(we)
-        db.session.flush()
+        db.session.add(workout)
+        db.session.flush()  # assigns workout.id without committing yet
 
-        working_sets = []  # (set_row, weight, reps) — excludes warmups, BR-08
-        for set_number, s in enumerate(ex_data["sets"], start=1):
-            tempo = s.get("tempo")
-            reps = s["reps"]
-            row = Set(
-                workout_exercise_id=we.id,
-                set_number=set_number,
-                weight_kg=s["weight_kg"],
-                reps=reps,
-                rpe=s.get("rpe"),
-                tempo=tempo,
-                tut_sec=tut_sec(reps, tempo),
-                is_warmup=bool(s.get("is_warmup", False)),
+        new_prs = []
+        achieved_date = performed_at.date()
+
+        for position, ex_data in enumerate(data["exercises"], start=1):
+            we = WorkoutExercise(
+                workout_id=workout.id,
+                exercise_id=ex_data["exercise_id"],
+                position=position,
+                notes=ex_data.get("notes"),
             )
-            db.session.add(row)
+            db.session.add(we)
             db.session.flush()
-            if not row.is_warmup:
-                working_sets.append((row, float(row.weight_kg), reps))
 
-        if not working_sets:
-            continue
+            working_sets = []  # (set_row, weight, reps) — excludes warmups, BR-08
+            for set_number, s in enumerate(ex_data["sets"], start=1):
+                tempo = s.get("tempo")
+                reps = s["reps"]
+                row = Set(
+                    workout_exercise_id=we.id,
+                    set_number=set_number,
+                    weight_kg=s["weight_kg"],
+                    reps=reps,
+                    rpe=s.get("rpe"),
+                    tempo=tempo,
+                    tut_sec=tut_sec(reps, tempo),
+                    is_warmup=bool(s.get("is_warmup", False)),
+                )
+                db.session.add(row)
+                db.session.flush()
+                if not row.is_warmup:
+                    working_sets.append((row, float(row.weight_kg), reps))
 
-        exercise_id = ex_data["exercise_id"]
-        exercise = db.session.get(Exercise, exercise_id)
-        exercise_name = exercise.name if exercise else "Oefening"
+            if not working_sets:
+                continue
 
-        max_weight_row = max(working_sets, key=lambda t: t[1])
-        max_reps_row = max(working_sets, key=lambda t: t[2])
-        total_tonnage = sum(tonnage_fn(w, r) for _, w, r in working_sets)
+            exercise_id = ex_data["exercise_id"]
+            exercise = db.session.get(Exercise, exercise_id)
+            exercise_name = exercise.name if exercise else "Oefening"
 
-        best_e1rm = None
-        best_e1rm_row = None
-        for row, w, r in working_sets:
-            e1rm = brzycki_e1rm(w, r)
-            if e1rm is not None and (best_e1rm is None or e1rm > best_e1rm):
-                best_e1rm, best_e1rm_row = e1rm, row
+            max_weight_row = max(working_sets, key=lambda t: t[1])
+            max_reps_row = max(working_sets, key=lambda t: t[2])
+            total_tonnage = sum(tonnage_fn(w, r) for _, w, r in working_sets)
 
-        if best_e1rm is not None:
-            db.session.add(E1rmHistory(
-                user_id=current_user.id, exercise_id=exercise_id,
-                date=achieved_date, e1rm_kg=best_e1rm, source_set_id=best_e1rm_row.id,
-            ))
+            best_e1rm = None
+            best_e1rm_row = None
+            for row, w, r in working_sets:
+                e1rm = brzycki_e1rm(w, r)
+                if e1rm is not None and (best_e1rm is None or e1rm > best_e1rm):
+                    best_e1rm, best_e1rm_row = e1rm, row
 
-        if upsert_pr(current_user.id, exercise_id, "weight", max_weight_row[1], max_weight_row[0].id, achieved_date):
-            new_prs.append({"exercise": exercise_name, "type": "weight", "value": max_weight_row[1]})
-        if upsert_pr(current_user.id, exercise_id, "reps", max_reps_row[2], max_reps_row[0].id, achieved_date):
-            new_prs.append({"exercise": exercise_name, "type": "reps", "value": max_reps_row[2]})
-        if upsert_pr(current_user.id, exercise_id, "tonnage", total_tonnage, working_sets[0][0].id, achieved_date):
-            new_prs.append({"exercise": exercise_name, "type": "tonnage", "value": total_tonnage})
-        if best_e1rm is not None and upsert_pr(
-            current_user.id, exercise_id, "e1rm", best_e1rm, best_e1rm_row.id, achieved_date
-        ):
-            new_prs.append({"exercise": exercise_name, "type": "e1rm", "value": best_e1rm})
+            if best_e1rm is not None:
+                db.session.add(E1rmHistory(
+                    user_id=current_user.id, exercise_id=exercise_id,
+                    date=achieved_date, e1rm_kg=best_e1rm, source_set_id=best_e1rm_row.id,
+                ))
 
-    db.session.commit()
+            if upsert_pr(current_user.id, exercise_id, "weight", max_weight_row[1], max_weight_row[0].id, achieved_date):
+                new_prs.append({"exercise": exercise_name, "type": "weight", "value": max_weight_row[1]})
+            if upsert_pr(current_user.id, exercise_id, "reps", max_reps_row[2], max_reps_row[0].id, achieved_date):
+                new_prs.append({"exercise": exercise_name, "type": "reps", "value": max_reps_row[2]})
+            if upsert_pr(current_user.id, exercise_id, "tonnage", total_tonnage, working_sets[0][0].id, achieved_date):
+                new_prs.append({"exercise": exercise_name, "type": "tonnage", "value": total_tonnage})
+            if best_e1rm is not None and upsert_pr(
+                current_user.id, exercise_id, "e1rm", best_e1rm, best_e1rm_row.id, achieved_date
+            ):
+                new_prs.append({"exercise": exercise_name, "type": "e1rm", "value": best_e1rm})
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Failed to save workout for user_id=%s", current_user.id
+        )
+        body, status = error_response(
+            "WORKOUT_SAVE_FAILED",
+            "Workout opslaan mislukt. Probeer het opnieuw.",
+            status=500,
+        )
+        return jsonify(body), status
+
     return jsonify(_workout_response(workout, new_prs=new_prs)), 201
 
 
