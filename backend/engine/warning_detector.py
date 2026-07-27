@@ -40,11 +40,17 @@ GOAL_MISMATCH_MIN_SETS = 10               # need enough sets to trust the mix
 GOAL_MISMATCH_SHARE = 0.6                 # >=60% of sets outside goal's range
 
 # Lower number = shown first when more than 3 warnings are active (BR-09).
+# White Paper §15 orders warning categories overreaching > deload > plateau
+# > frequentie > overig; deload_needed is this codebase's single detector
+# for both (a 3-session RPE>=9 streak is the overreaching signal that
+# triggers the deload recommendation), muscle_imbalance is the frequency/
+# distribution check, and the remaining, lower-severity detectors fill the
+# "overig" tier, ordered by how actionable/severe they are.
 PRIORITY = {
     "deload_needed": 1,
-    "suspicious_jump": 2,
-    "plateau": 3,
-    "muscle_imbalance": 4,
+    "plateau": 2,
+    "muscle_imbalance": 3,
+    "suspicious_jump": 4,
     "goal_mismatch": 5,
     "stale_exercise": 6,
     "inactivity": 7,

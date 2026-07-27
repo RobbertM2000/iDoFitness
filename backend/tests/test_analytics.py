@@ -93,7 +93,8 @@ def test_dashboard_cold_start_hypertrophy_user_no_crash(hyper_client):
     assert body["rep_range_distribution"] is None  # no sets logged yet
     assert body["muscle_group_volume"] == {}
     # brand-new user with zero workouts ever -> inactivity warning
-    assert any(w["type"] == "inactivity" for w in body["warnings"])
+    assert any(w["warning_type"] == "inactivity" for w in body["warnings"])
+    assert body["warnings"][0]["created_at"]
 
 
 def test_dashboard_cold_start_strength_user_no_crash(strength_client):

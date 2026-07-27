@@ -165,6 +165,30 @@ def create_custom_exercise():
     return jsonify(exercise_to_dict(ex)), 201
 
 
+@exercises_bp.route("/avoided", methods=["GET"])
+@login_required
+def list_avoided_exercises():
+    """White Paper §4.3 — Settings' "Blessures & te vermijden oefeningen" list."""
+    rows = (
+        db.session.query(UserAvoidedExercise, Exercise)
+        .join(Exercise, Exercise.id == UserAvoidedExercise.exercise_id)
+        .filter(UserAvoidedExercise.user_id == current_user.id)
+        .order_by(Exercise.name)
+        .all()
+    )
+    return jsonify({
+        "avoided_exercises": [
+            {
+                "exercise_id": ex.id,
+                "name": ex.name,
+                "muscle": ex.primary_muscle.name if ex.primary_muscle else None,
+                "reason": avoided.reason,
+            }
+            for avoided, ex in rows
+        ]
+    }), 200
+
+
 @exercises_bp.route("/<int:exercise_id>/avoid", methods=["POST"])
 @login_required
 def avoid_exercise(exercise_id):

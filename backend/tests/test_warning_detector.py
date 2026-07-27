@@ -206,7 +206,7 @@ def test_detect_warnings_sorts_by_priority():
         days_per_week=4,
         as_of=BASE_DATE,
     )
-    # deload_needed (priority 1) must lead muscle_imbalance (priority 4)
+    # deload_needed (priority 1) must lead muscle_imbalance (priority 3)
     types = [c.warning_type for c in result]
     assert types.index("deload_needed") < types.index("muscle_imbalance")
 

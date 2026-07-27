@@ -403,8 +403,9 @@ def _get_active_warnings(user) -> list[dict]:
     result_rows = result_rows[:MAX_WARNINGS]
     return [
         {
-            "id": w.id, "type": w.warning_type, "message": w.message,
+            "id": w.id, "warning_type": w.warning_type, "message": w.message,
             "action_hint": w.action_hint, "severity": w.severity,
+            "created_at": w.created_at.isoformat(),
         }
         for w in result_rows
     ]

@@ -5,6 +5,7 @@ import { inputStyle, PrimaryButton, OptionCard } from "../onboarding/OnboardingS
 import FieldError from "../../components/FieldError";
 import Spinner from "../../components/Spinner";
 import Toast from "../../components/Toast";
+import AvoidedExercises from "./AvoidedExercises";
 
 const EXPERIENCE_OPTIONS = [
   { value: "beginner", label: "Beginner", sub: "<1 jaar" },
@@ -343,6 +344,8 @@ export default function SettingsScreen({ onBack }) {
       <PrimaryButton onClick={handleSave} disabled={saving}>
         {saving ? "Bezig…" : "Opslaan"}
       </PrimaryButton>
+
+      <AvoidedExercises />
 
       {toastMessage && <Toast message={toastMessage} onDone={() => setToastMessage("")} />}
     </div>

@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { api, ApiError } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { PrimaryButton } from "../onboarding/OnboardingShell";
-import WarningCard from "./WarningCard";
+import WarningCard from "../../components/WarningCard";
 import DashboardSkeleton, { SkeletonBlock } from "./Skeletons";
 
 const Sparkline = lazy(() => import("./charts/Sparkline"));
@@ -228,6 +228,16 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory, onSelectExe
     }
   };
 
+  // TODO: no dedicated "activate deload week" flow exists yet (no
+  // PeriodizationBlock UI/backend support) — for now the deload warning's
+  // action button just jumps to the Suggestion tab, the most actionable
+  // place to start lightening up today's session per the warning's hint.
+  const handleWarningAction = (warningType) => {
+    if (warningType === "deload_needed") {
+      onGoToSuggestion();
+    }
+  };
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -279,7 +289,7 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory, onSelectExe
       {(data.warnings || []).length > 0 && (
         <div style={{ marginBottom: 8 }}>
           {data.warnings.map((w) => (
-            <WarningCard key={w.id} warning={w} onDismiss={dismissWarning} />
+            <WarningCard key={w.id} warning={w} onDismiss={dismissWarning} onAction={handleWarningAction} />
           ))}
         </div>
       )}

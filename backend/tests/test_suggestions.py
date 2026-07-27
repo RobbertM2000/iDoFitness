@@ -69,6 +69,27 @@ def test_workout_suggestion_requires_login():
     assert resp.get_json()["error"]["code"] == "UNAUTHENTICATED"
 
 
+def test_workout_suggestion_excludes_avoided_exercises(client):
+    """White Paper §4.3/§5.5 — the WOD generator's candidate pool must
+    never surface an exercise on the user's avoid-list, however many
+    times the suggestion is regenerated."""
+    exercises = client.get("/api/exercises").get_json()["exercises"]
+    avoided_ids = set()
+    for ex in exercises:
+        resp = client.post(f"/api/exercises/{ex['id']}/avoid", json={"reason": "blessure"})
+        assert resp.status_code == 200
+        avoided_ids.add(ex["id"])
+        # a handful is enough to prove exclusion without avoiding the whole library
+        if len(avoided_ids) >= 5:
+            break
+
+    for _ in range(5):
+        resp = client.get("/api/workout-suggestion")
+        assert resp.status_code == 200
+        suggested_ids = {e["exercise_id"] for e in resp.get_json()["exercises"]}
+        assert suggested_ids.isdisjoint(avoided_ids)
+
+
 def test_workout_suggestion_with_trained_compound_exercise(app, client):
     """Regression test for the real-world crash: Set.weight_kg/rpe are
     Numeric (Decimal) DB columns. Once a compound exercise has real

@@ -162,3 +162,44 @@ def test_avoid_and_unavoid_exercise(client):
     exercises = client.get("/api/exercises").get_json()["exercises"]
     updated = next(e for e in exercises if e["id"] == bench["id"])
     assert updated["is_avoided"] is False
+
+
+def test_list_avoided_exercises_requires_login():
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+    resp = app.test_client().get("/api/exercises/avoided")
+    assert resp.status_code == 401
+
+
+def test_list_avoided_exercises_empty_by_default(client):
+    resp = client.get("/api/exercises/avoided")
+    assert resp.status_code == 200
+    assert resp.get_json()["avoided_exercises"] == []
+
+
+def test_list_avoided_exercises_returns_name_muscle_and_reason(client):
+    bench = next(e for e in client.get("/api/exercises").get_json()["exercises"] if e["name"] == "Bench Press")
+    client.post(f"/api/exercises/{bench['id']}/avoid", json={"reason": "shoulder injury"})
+
+    resp = client.get("/api/exercises/avoided")
+    assert resp.status_code == 200
+    avoided = resp.get_json()["avoided_exercises"]
+    assert len(avoided) == 1
+    assert avoided[0]["exercise_id"] == bench["id"]
+    assert avoided[0]["name"] == "Bench Press"
+    assert avoided[0]["muscle"] == bench["muscle"]
+    assert avoided[0]["reason"] == "shoulder injury"
+
+    client.delete(f"/api/exercises/{bench['id']}/avoid")
+    resp = client.get("/api/exercises/avoided")
+    assert resp.get_json()["avoided_exercises"] == []
+
+
+def test_avoid_exercise_reason_truncated_to_120_chars(client):
+    bench = next(e for e in client.get("/api/exercises").get_json()["exercises"] if e["name"] == "Bench Press")
+    long_reason = "x" * 200
+    client.post(f"/api/exercises/{bench['id']}/avoid", json={"reason": long_reason})
+
+    avoided = client.get("/api/exercises/avoided").get_json()["avoided_exercises"]
+    assert len(avoided[0]["reason"]) == 120

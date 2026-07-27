@@ -2,9 +2,17 @@ import { useState } from "react";
 
 const SEVERITY_COLOR = { high: "var(--danger)", medium: "var(--warning)", low: "var(--text-muted)" };
 
-export default function WarningCard({ warning, onDismiss }) {
+// White Paper §8.5 — only deload_needed has a concrete next action today.
+// Other warning types (plateau, muscle_imbalance, ...) are informational;
+// add an entry here if/when a dedicated flow exists for them.
+const ACTION_LABEL = {
+  deload_needed: "Plan deload-week",
+};
+
+export default function WarningCard({ warning, onDismiss, onAction }) {
   const [dismissing, setDismissing] = useState(false);
   const color = SEVERITY_COLOR[warning.severity] || "var(--text-muted)";
+  const actionLabel = ACTION_LABEL[warning.warning_type];
 
   const handleDismiss = async () => {
     setDismissing(true);
@@ -36,6 +44,18 @@ export default function WarningCard({ warning, onDismiss }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 14, fontWeight: 500 }}>{warning.message}</p>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--text-muted)" }}>{warning.action_hint}</p>
+        {actionLabel && onAction && (
+          <button
+            type="button"
+            onClick={() => onAction(warning.warning_type)}
+            style={{
+              background: "none", border: "none", color: "var(--primary)",
+              cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "6px 0 0",
+            }}
+          >
+            {actionLabel} →
+          </button>
+        )}
       </div>
       <button
         type="button"
