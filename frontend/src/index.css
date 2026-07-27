@@ -67,3 +67,16 @@ input::placeholder { color: var(--text-muted); opacity: 1; }
   from { transform: translate(-50%, 8px); opacity: 0; }
   to { transform: translate(-50%, 0); opacity: 1; }
 }
+
+/* Dashboard loading state — skeleton placeholders, not a spinner (§12.2). */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+
+.skeleton {
+  background: var(--text-muted);
+  opacity: 0.35;
+  border-radius: 8px;
+  animation: skeleton-pulse 1400ms ease-in-out infinite;
+}

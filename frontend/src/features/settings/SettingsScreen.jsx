@@ -70,6 +70,8 @@ const backButtonStyle = {
   fontSize: 14,
 };
 
+const GOAL_MODE_LABEL = { hypertrophy: "hypertrofie", strength: "kracht" };
+
 function needsEquipmentFor(location) {
   return location === "home" || location === "both";
 }
@@ -90,13 +92,14 @@ function validate(form) {
 }
 
 export default function SettingsScreen({ onBack }) {
-  const { setUser } = useAuth();
+  const { setUser, logout } = useAuth();
   const [form, setForm] = useState(null);
+  const [loadedGoal, setLoadedGoal] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [equipmentOptions, setEquipmentOptions] = useState([]);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +117,7 @@ export default function SettingsScreen({ onBack }) {
           training_location: user.training_location || "",
           equipment: user.equipment || [],
         });
+        setLoadedGoal(user.global_goal || "");
       })
       .catch((err) => {
         if (cancelled) return;
@@ -159,7 +163,13 @@ export default function SettingsScreen({ onBack }) {
         equipment: form.training_location === "gym" ? [] : form.equipment,
       });
       setUser(data.user);
-      setShowToast(true);
+      const goalChanged = loadedGoal && form.global_goal !== loadedGoal;
+      setLoadedGoal(form.global_goal);
+      setToastMessage(
+        goalChanged
+          ? `Aanbevelingen staan nu in ${GOAL_MODE_LABEL[form.global_goal] || form.global_goal}-modus`
+          : "Profiel opgeslagen"
+      );
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields || {}).length) {
         setErrors(err.fields);
@@ -192,11 +202,22 @@ export default function SettingsScreen({ onBack }) {
 
   return (
     <div style={{ maxWidth: 400, margin: "0 auto", padding: "24px 24px 96px" }}>
-      {onBack && (
-        <button type="button" onClick={onBack} style={backButtonStyle}>
-          <span aria-hidden="true">‹</span> Terug
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        {onBack ? (
+          <button type="button" onClick={onBack} style={backButtonStyle}>
+            <span aria-hidden="true">‹</span> Terug
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={logout}
+          style={{ ...backButtonStyle, marginBottom: 12 }}
+        >
+          Uitloggen
         </button>
-      )}
+      </div>
 
       <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Instellingen</h1>
       <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>Werk je profiel bij.</p>
@@ -323,7 +344,7 @@ export default function SettingsScreen({ onBack }) {
         {saving ? "Bezig…" : "Opslaan"}
       </PrimaryButton>
 
-      {showToast && <Toast message="Profiel opgeslagen" onDone={() => setShowToast(false)} />}
+      {toastMessage && <Toast message={toastMessage} onDone={() => setToastMessage("")} />}
     </div>
   );
 }

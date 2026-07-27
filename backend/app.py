@@ -63,6 +63,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     from auth.routes import auth_bp
     from api import recommendations
     from api import suggestions
+    from api import analytics
     from api.profile import profile_bp
     from api.exercises import exercises_bp
     from api.workouts import workouts_bp
@@ -72,6 +73,7 @@ def create_app(config_overrides: dict | None = None) -> Flask:
     app.register_blueprint(workouts_bp)
     app.register_blueprint(recommendations.bp)
     app.register_blueprint(suggestions.bp)
+    app.register_blueprint(analytics.bp)
 
     from seed import register_cli
     register_cli(app)
