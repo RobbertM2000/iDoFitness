@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node suggestion_e2e_error.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3103)",
+      "Bash(powershell -Command \"Stop-Process -Id 1872,11240 -Force\")",
+      "Bash(powershell -Command \"Get-Process -Id 4428,9660 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime\")",
+      "Bash(python -c \"import pytest_cov\")",
+      "Bash(pip install *)",
+      "Bash(rm -f dev_debug2.db)",
+      "Bash(python -c ' *)",
+      "Bash(rm -f /tmp/comp_cookies.txt)",
+      "Bash(curl -s -c /tmp/comp_cookies.txt -b /tmp/comp_cookies.txt -X POST http://localhost:5051/api/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"comptest\",\"email\":\"comptest@example.com\",\"password\":\"testpass123\",\"password_confirm\":\"testpass123\"}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(rm -f /tmp/login_cookies.txt)",
+      "Bash(curl -s -c /tmp/login_cookies.txt -X POST http://localhost:5051/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"comptest\",\"password\":\"testpass123\"}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/comp_cookies.txt http://localhost:5051/api/profile -w \"\\\\nSTATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/comp_cookies.txt -X POST http://localhost:5051/api/onboarding -H 'Content-Type: application/json' -d '{\"display_name\":\"Comp\",\"age\":27,\"height_cm\":178,\"bodyweight_kg\":74,\"sex\":\"man\",\"global_goal\":\"hypertrophy\",\"experience\":\"intermediate\",\"days_per_week\":4,\"session_minutes\":60,\"training_location\":\"gym\",\"privacy_accepted\":true}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/comp_cookies.txt -X POST http://localhost:5051/api/workouts -H 'Content-Type: application/json' -d '{\"performed_at\":\"2026-07-20T18:00:00Z\",\"duration_sec\":3000,\"title\":\"Push Day\",\"source\":\"manual\",\"exercises\":[{\"exercise_id\":10,\"sets\":[{\"weight_kg\":100,\"reps\":5,\"rpe\":8},{\"weight_kg\":100,\"reps\":5,\"rpe\":8.5}]}]}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/comp_cookies.txt http://localhost:5051/api/workout-suggestion -w \"\\\\nSTATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/comp_cookies.txt \"http://localhost:5051/api/recommendation?exercise_id=10\" -w \"\\\\nSTATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/comp_cookies.txt -X POST http://localhost:5051/api/workouts -H 'Content-Type: application/json' -d '{\"performed_at\":\"2026-07-23T18:00:00Z\",\"duration_sec\":3000,\"title\":\"Push Day 2\",\"source\":\"manual\",\"exercises\":[{\"exercise_id\":10,\"sets\":[{\"weight_kg\":100,\"reps\":6,\"rpe\":7.5},{\"weight_kg\":100,\"reps\":6,\"rpe\":8}]}]}' -w 'STATUS:%{http_code}\\\\n' -o /dev/null)",
+      "Bash(curl -s -b /tmp/comp_cookies.txt http://localhost:5051/api/workout-suggestion)",
+      "Bash(node full_e2e.js)",
+      "Bash(node full_e2e_part2.js)",
+      "Bash(node full_e2e_part3.js)",
+      "Bash(powershell -Command \"Stop-Process -Id 5424,9660 -Force\")",
+      "Bash(pip uninstall *)",
+      "Bash(powershell -Command \"Get-Process -Id 4888,14628 -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,StartTime\")",
+      "Bash(rm -f /tmp/live_cookies.txt)",
+      "Bash(curl -s -c /tmp/live_cookies.txt -X POST http://localhost:5000/api/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"debugrepro\",\"email\":\"debugrepro@example.com\",\"password\":\"testpass123\",\"password_confirm\":\"testpass123\"}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/live_cookies.txt -X POST http://localhost:5000/api/onboarding -H 'Content-Type: application/json' -d '{\"display_name\":\"Debug\",\"age\":28,\"height_cm\":178,\"bodyweight_kg\":75,\"sex\":\"man\",\"global_goal\":\"hypertrophy\",\"experience\":\"intermediate\",\"days_per_week\":4,\"session_minutes\":60,\"training_location\":\"gym\",\"privacy_accepted\":true}' -w '\\\\nSTATUS:%{http_code}\\\\n')",
+      "Bash(curl -s -b /tmp/live_cookies.txt \"http://localhost:5000/api/exercises\" -w \"\\\\nSTATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -b /tmp/live_cookies.txt http://localhost:5000/api/workout-suggestion -w \"\\\\nSTATUS:%{http_code}\\\\n\")"
+    ]
+  }
+}
