@@ -4,7 +4,10 @@ from flask_login import login_required, current_user
 
 from extensions import db
 from helpers import error_response
-from models import Exercise, MuscleGroup, Equipment, UserAvoidedExercise, ExerciseAlternative
+from models import (
+    Exercise, MuscleGroup, Equipment, UserAvoidedExercise, ExerciseAlternative,
+    Workout, WorkoutExercise,
+)
 
 exercises_bp = Blueprint("exercises", __name__, url_prefix="/api/exercises")
 
@@ -57,6 +60,47 @@ def list_exercises():
     return jsonify({
         "exercises": [
             {**exercise_to_dict(ex), "is_avoided": ex.id in avoided_ids} for ex in exercises
+        ]
+    }), 200
+
+
+@exercises_bp.route("/search", methods=["GET"])
+@login_required
+def search_exercises():
+    """Entry point for the Exercise Detail screen (White Paper §14): free-text
+    search that surfaces exercises the user has actually logged before
+    everything else, since "find my bench press history" is the common case
+    — not "browse the whole library" (that's list_exercises above)."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return jsonify({"exercises": []}), 200
+
+    candidates = (
+        Exercise.query.filter(
+            db.or_(Exercise.created_by.is_(None), Exercise.created_by == current_user.id)
+        )
+        .filter(Exercise.is_archived.is_(False))
+        .filter(Exercise.name.ilike(f"%{q}%"))
+        .order_by(Exercise.name)
+        .limit(50)
+        .all()
+    )
+
+    logged_ids = {
+        row[0] for row in (
+            db.session.query(WorkoutExercise.exercise_id)
+            .join(Workout, Workout.id == WorkoutExercise.workout_id)
+            .filter(Workout.user_id == current_user.id, Workout.deleted_at.is_(None))
+            .distinct()
+            .all()
+        )
+    }
+
+    ordered = sorted(candidates, key=lambda ex: (ex.id not in logged_ids, ex.name))[:20]
+
+    return jsonify({
+        "exercises": [
+            {**exercise_to_dict(ex), "logged": ex.id in logged_ids} for ex in ordered
         ]
     }), 200
 

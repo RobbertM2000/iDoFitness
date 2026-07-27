@@ -95,7 +95,7 @@ function PrimaryStatCard({ data }) {
   );
 }
 
-function SecondaryRow({ data }) {
+function SecondaryRow({ data, onSelectExercise }) {
   const isStrength = data.goal === "strength";
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 16 }}>
@@ -107,7 +107,15 @@ function SecondaryRow({ data }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {data.main_lift_e1rms.map((lift) => (
-                  <div key={lift.exercise_id}>
+                  <button
+                    key={lift.exercise_id}
+                    type="button"
+                    onClick={() => onSelectExercise?.(lift.exercise_id)}
+                    style={{
+                      display: "block", width: "100%", textAlign: "left", padding: 0,
+                      background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                       <span>{lift.exercise}</span>
                       <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
@@ -117,7 +125,7 @@ function SecondaryRow({ data }) {
                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                       {lift.last_trained ? formatDate(lift.last_trained) : "Nog niet getraind"}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -180,7 +188,7 @@ function RecentWorkouts({ workouts, onSelect }) {
   );
 }
 
-export default function Dashboard({ onGoToSuggestion, onGoToHistory }) {
+export default function Dashboard({ onGoToSuggestion, onGoToHistory, onSelectExercise, onOpenExerciseSearch }) {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -245,9 +253,21 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory }) {
 
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "16px 16px 88px" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>
-        Welkom, {user?.display_name || user?.username}
-      </h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>
+          Welkom, {user?.display_name || user?.username}
+        </h1>
+        <button
+          type="button"
+          onClick={onOpenExerciseSearch}
+          style={{
+            background: "none", border: "none", color: "var(--text-muted)",
+            cursor: "pointer", fontSize: 13, padding: "4px 0", flexShrink: 0,
+          }}
+        >
+          Zoek oefening
+        </button>
+      </div>
       {data.streak_days > 0 ? (
         <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 20px" }}>
           🔥 {data.streak_days} {data.streak_days === 1 ? "dag" : "dagen"} op rij
@@ -265,7 +285,7 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory }) {
       )}
 
       <PrimaryStatCard data={data} />
-      <SecondaryRow data={data} />
+      <SecondaryRow data={data} onSelectExercise={onSelectExercise} />
 
       <PrimaryButton onClick={onGoToSuggestion}>
         ⚡ Genereer workout van vandaag

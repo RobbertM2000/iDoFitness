@@ -168,25 +168,69 @@ def test_progression_unknown_exercise_404(hyper_client):
     assert resp.status_code == 404
 
 
-def test_progression_insufficient_data_for_new_exercise(hyper_client, bench_id):
+def test_progression_zero_sessions(hyper_client, bench_id):
     resp = hyper_client.get(f"/api/analytics/progression?exercise_id={bench_id}")
     assert resp.status_code == 200
     body = resp.get_json()
-    assert body["insufficient_data"] is True
-    assert body["series"] == []
+    assert body["provisional"] is True
+    assert body["regression"] is None
+    assert body["data_points"] == []
+    assert body["personal_records"] == {}
+    assert body["is_compound"] is True  # Bench Press
 
 
-def test_progression_with_enough_history_computes_trend(hyper_client, bench_id):
+def test_progression_provisional_below_five_sessions(hyper_client, bench_id):
+    for i, d in enumerate(["2026-06-01", "2026-06-08", "2026-06-15"]):
+        log_workout(hyper_client, bench_id, f"{d}T18:00:00Z", weight=80 + i, reps=5, rpe=7)
+
+    resp = hyper_client.get(f"/api/analytics/progression?exercise_id={bench_id}")
+    body = resp.get_json()
+    assert body["provisional"] is True  # < COLD_START_MIN_SESSIONS (5)
+    assert body["regression"] is None  # < BR-06's 5-point floor too
+    assert len(body["data_points"]) == 3
+
+
+def test_progression_with_five_sessions_computes_regression(hyper_client, bench_id):
     dates = ["2026-06-01", "2026-06-08", "2026-06-15", "2026-06-22", "2026-06-29"]
     for i, d in enumerate(dates):
         log_workout(hyper_client, bench_id, f"{d}T18:00:00Z", weight=80 + i * 2.5, reps=5, rpe=7)
 
     resp = hyper_client.get(f"/api/analytics/progression?exercise_id={bench_id}")
     body = resp.get_json()
-    assert body["insufficient_data"] is False
-    assert len(body["series"]) == 5
-    assert body["trend_kg_per_week"] > 0  # weight increased every session
-    assert body["forecast_2weeks_kg"] > body["series"][-1]["e1rm_kg"]
+    assert body["provisional"] is False
+    assert len(body["data_points"]) == 5
+    assert body["regression"]["slope"] > 0  # weight increased every session
+    assert body["regression"]["forecast_2weeks"] > body["data_points"][-1]["e1rm_kg"]
+    for point in body["data_points"]:
+        assert point["weight_kg"] is not None
+        assert point["reps"] == 5
+        assert point["e1rm_kg"] is not None  # reps<=10 -> BR-07 valid
+
+
+def test_progression_marks_pr_points_and_returns_personal_records(hyper_client, bench_id):
+    log_workout(hyper_client, bench_id, "2026-06-01T18:00:00Z", weight=80, reps=5, rpe=7)
+    log_workout(hyper_client, bench_id, "2026-06-08T18:00:00Z", weight=90, reps=5, rpe=8)  # new weight PR
+
+    resp = hyper_client.get(f"/api/analytics/progression?exercise_id={bench_id}")
+    body = resp.get_json()
+    assert body["data_points"][0]["is_pr"] is True  # first-ever set is a PR
+    assert body["data_points"][1]["is_pr"] is True  # heavier -> new weight PR
+    assert body["personal_records"]["weight"]["value"] == 90.0
+    assert "e1rm" in body["personal_records"]
+    assert "tonnage" in body["personal_records"]
+
+
+def test_progression_session_with_only_high_reps_has_no_e1rm(hyper_client, bench_id):
+    """BR-07: e1RM only valid for reps<=10 — an all-high-rep session still
+    produces a weight data point (best tonnage set), just no e1rm_kg."""
+    log_workout(hyper_client, bench_id, "2026-06-01T18:00:00Z", weight=40, reps=15, rpe=7)
+
+    resp = hyper_client.get(f"/api/analytics/progression?exercise_id={bench_id}")
+    body = resp.get_json()
+    assert len(body["data_points"]) == 1
+    assert body["data_points"][0]["weight_kg"] == 40.0
+    assert body["data_points"][0]["reps"] == 15
+    assert body["data_points"][0]["e1rm_kg"] is None
 
 
 # ---------------------------------------------------------------------------

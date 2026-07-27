@@ -16,7 +16,8 @@ from flask_login import login_required, current_user
 
 from extensions import db
 from helpers import error_response
-from engine.predictor import SessionLog, regression_slope_over_days
+from engine.formulas import brzycki_e1rm
+from engine.predictor import SessionLog, regression_slope_over_days, COLD_START_MIN_SESSIONS
 from engine.warning_detector import detect_warnings
 from api.recommendations import _sessions_for_exercise
 from models import (
@@ -293,6 +294,63 @@ def _main_lift_progressions(user_id: int) -> list[dict]:
     return out
 
 
+def _session_data_points(user_id: int, exercise_id: int) -> list[dict]:
+    """One point per session (calendar day), oldest first. The
+    representative set is the heaviest set with reps<=10 (BR-07 — the
+    same set predictor.py's e1RM math is built on); if a session has no
+    such set (e.g. an all-high-rep hypertrophy session), falls back to
+    the best-tonnage set so the session still shows a weight, just
+    without an e1RM value.
+    """
+    rows = (
+        db.session.query(Workout.performed_at, Set.id, Set.weight_kg, Set.reps)
+        .select_from(Set)
+        .join(WorkoutExercise, Set.workout_exercise_id == WorkoutExercise.id)
+        .join(Workout, WorkoutExercise.workout_id == Workout.id)
+        .filter(
+            Workout.user_id == user_id,
+            WorkoutExercise.exercise_id == exercise_id,
+            Workout.deleted_at.is_(None),
+            Set.is_warmup.is_(False),
+        )
+        .order_by(Workout.performed_at)
+        .all()
+    )
+
+    sessions: dict[date, list[tuple[int, float, int]]] = {}
+    for performed_at, set_id, weight_kg, reps in rows:
+        sessions.setdefault(performed_at.date(), []).append((set_id, float(weight_kg), reps))
+
+    pr_set_ids = {
+        pr.set_id for pr in PersonalRecord.query.filter_by(
+            user_id=user_id, exercise_id=exercise_id
+        ).all() if pr.set_id is not None
+    }
+
+    points = []
+    for session_date in sorted(sessions.keys()):
+        sets = sessions[session_date]
+        valid = [s for s in sets if s[2] <= 10]
+        top = max(valid, key=lambda s: s[1]) if valid else max(sets, key=lambda s: s[1] * s[2])
+        set_id, weight_kg, reps = top
+        points.append({
+            "date": session_date.isoformat(),
+            "weight_kg": weight_kg,
+            "reps": reps,
+            "e1rm_kg": brzycki_e1rm(weight_kg, reps),
+            "is_pr": set_id in pr_set_ids,
+        })
+    return points
+
+
+def _personal_records_for_exercise(user_id: int, exercise_id: int) -> dict:
+    rows = PersonalRecord.query.filter_by(user_id=user_id, exercise_id=exercise_id).all()
+    return {
+        pr.record_type: {"value": float(pr.value), "achieved_at": pr.achieved_at.isoformat()}
+        for pr in rows
+    }
+
+
 # ---------------------------------------------------------------------------
 # Warnings — persistence + BR-09's 7-day dismiss suppression
 # ---------------------------------------------------------------------------
@@ -430,6 +488,17 @@ def get_volume():
 @bp.route('/analytics/progression', methods=['GET'])
 @login_required
 def get_progression():
+    """Weight/e1RM history for one exercise, for the Exercise Detail
+    screen (White Paper §5.7, §14). exercise_id required.
+
+    provisional mirrors predictor.py's own cold-start ladder
+    (COLD_START_MIN_SESSIONS=5, §5.8): fewer sessions than that and the
+    frontend shows a "voorlopig" banner instead of trusting the trend.
+    regression is independently gated on BR-06 (>=5 e1RM-bearing points,
+    which can be fewer than total sessions — a session with only >10-rep
+    sets has no valid e1RM per BR-07) since that's the actual
+    precondition regression_slope_over_days enforces.
+    """
     exercise_id = request.args.get('exercise_id', type=int)
     if not exercise_id:
         body, status = error_response(
@@ -442,29 +511,38 @@ def get_progression():
         body, status = error_response("NOT_FOUND", "Oefening niet gevonden", status=404)
         return jsonify(body), status
 
-    history = (
-        E1rmHistory.query.filter_by(user_id=current_user.id, exercise_id=exercise_id)
-        .order_by(E1rmHistory.date)
-        .all()
-    )
-    if not history:
+    try:
+        today = _today()
+        data_points = _session_data_points(current_user.id, exercise_id)
+
+        e1rm_dated = [
+            ((datetime.fromisoformat(p["date"]).date() - today).days, p["e1rm_kg"])
+            for p in data_points if p["e1rm_kg"] is not None
+        ]
+        slope_per_day = regression_slope_over_days(e1rm_dated)
+        regression = None
+        if slope_per_day is not None:
+            current_e1rm = e1rm_dated[-1][1]
+            regression = {
+                "slope": round(slope_per_day * 7, 2),
+                "forecast_2weeks": round(current_e1rm + slope_per_day * 14, 1),
+            }
+
         return jsonify({
-            "exercise_id": exercise_id, "exercise_name": exercise.name,
-            "series": [], "trend_kg_per_week": None, "forecast_2weeks_kg": None,
-            "insufficient_data": True,
+            "exercise_id": exercise_id,
+            "exercise_name": exercise.name,
+            "is_compound": exercise.is_compound,
+            "muscle": exercise.primary_muscle.name if exercise.primary_muscle else None,
+            "data_points": data_points,
+            "regression": regression,
+            "provisional": len(data_points) < COLD_START_MIN_SESSIONS,
+            "personal_records": _personal_records_for_exercise(current_user.id, exercise_id),
         }), 200
-
-    today = _today()
-    series = [{"date": h.date.isoformat(), "e1rm_kg": float(h.e1rm_kg)} for h in history]
-    dated = [((h.date - today).days, float(h.e1rm_kg)) for h in history]
-    slope_per_day = regression_slope_over_days(dated)
-    current = series[-1]["e1rm_kg"]
-
-    return jsonify({
-        "exercise_id": exercise_id,
-        "exercise_name": exercise.name,
-        "series": series,
-        "trend_kg_per_week": round(slope_per_day * 7, 2) if slope_per_day is not None else None,
-        "forecast_2weeks_kg": round(current + slope_per_day * 14, 1) if slope_per_day is not None else None,
-        "insufficient_data": slope_per_day is None,
-    }), 200
+    except Exception:
+        current_app.logger.exception(
+            "Failed to build progression for user_id=%s exercise_id=%s", current_user.id, exercise_id
+        )
+        body, status = error_response(
+            "PROGRESSION_FAILED", "Geschiedenis kon niet geladen worden. Probeer het opnieuw.", status=500
+        )
+        return jsonify(body), status

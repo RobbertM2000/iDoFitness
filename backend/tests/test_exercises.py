@@ -107,6 +107,47 @@ def test_create_custom_exercise_invalid_muscle(client):
     assert "muscle" in resp.get_json()["error"]["fields"]
 
 
+def test_search_requires_login():
+    app = create_app({"SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:", "TESTING": True})
+    with app.app_context():
+        db.create_all()
+    resp = app.test_client().get("/api/exercises/search?q=bench")
+    assert resp.status_code == 401
+
+
+def test_search_empty_query_returns_empty(client):
+    resp = client.get("/api/exercises/search")
+    assert resp.status_code == 200
+    assert resp.get_json()["exercises"] == []
+
+
+def test_search_matches_by_name(client):
+    resp = client.get("/api/exercises/search?q=bench")
+    assert resp.status_code == 200
+    names = [e["name"] for e in resp.get_json()["exercises"]]
+    assert "Bench Press" in names
+
+
+def test_search_prioritizes_logged_exercises(client):
+    bench = next(e for e in client.get("/api/exercises").get_json()["exercises"] if e["name"] == "Bench Press")
+    squat = next(e for e in client.get("/api/exercises").get_json()["exercises"] if e["name"] == "Back Squat")
+
+    # Log Back Squat only — it should now outrank Bench Press despite "b"
+    # matching both and Bench Press winning alphabetically otherwise.
+    client.post("/api/workouts", json={
+        "performed_at": "2026-07-20T18:00:00Z", "source": "manual",
+        "exercises": [{"exercise_id": squat["id"], "sets": [{"weight_kg": 100, "reps": 5}]}],
+    })
+
+    resp = client.get("/api/exercises/search?q=b")
+    results = resp.get_json()["exercises"]
+    squat_idx = next(i for i, e in enumerate(results) if e["id"] == squat["id"])
+    bench_idx = next(i for i, e in enumerate(results) if e["id"] == bench["id"])
+    assert squat_idx < bench_idx
+    assert next(e for e in results if e["id"] == squat["id"])["logged"] is True
+    assert next(e for e in results if e["id"] == bench["id"])["logged"] is False
+
+
 def test_avoid_and_unavoid_exercise(client):
     bench = next(e for e in client.get("/api/exercises").get_json()["exercises"] if e["name"] == "Bench Press")
     resp = client.post(f"/api/exercises/{bench['id']}/avoid", json={"reason": "shoulder injury"})

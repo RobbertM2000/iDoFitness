@@ -5,7 +5,7 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" });
 }
 
-export default function History() {
+export default function History({ onSelectExercise }) {
   const [workouts, setWorkouts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -59,7 +59,17 @@ export default function History() {
             <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 14 }}>
               {w.exercises.map((e) => (
                 <li key={e.id}>
-                  {e.exercise_name} — {e.sets.filter((s) => !s.is_warmup).length} sets
+                  <button
+                    type="button"
+                    onClick={() => onSelectExercise?.(e.exercise_id)}
+                    style={{
+                      background: "none", border: "none", padding: 0, font: "inherit",
+                      color: "var(--primary)", cursor: "pointer", textDecoration: "underline",
+                    }}
+                  >
+                    {e.exercise_name}
+                  </button>
+                  {" "}— {e.sets.filter((s) => !s.is_warmup).length} sets
                 </li>
               ))}
             </ul>
