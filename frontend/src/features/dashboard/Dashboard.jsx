@@ -67,7 +67,7 @@ function PrimaryStatCard({ data }) {
               )}
             </div>
             <Suspense fallback={<ChartFallback height={40} />}>
-              <Sparkline data={top.series.map((s) => s.e1rm_kg)} />
+              <Sparkline data={(top.series || []).map((s) => s.e1rm_kg)} />
             </Suspense>
           </>
         ) : (
@@ -210,8 +210,8 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory }) {
   }, [user?.global_goal]);
 
   const dismissWarning = async (id) => {
-    const previous = data.warnings;
-    setData((d) => ({ ...d, warnings: d.warnings.filter((w) => w.id !== id) }));
+    const previous = data.warnings || [];
+    setData((d) => ({ ...d, warnings: (d.warnings || []).filter((w) => w.id !== id) }));
     try {
       await api.post(`/warnings/${id}/dismiss`);
     } catch (e) {
@@ -248,14 +248,15 @@ export default function Dashboard({ onGoToSuggestion, onGoToHistory }) {
       <h1 style={{ fontSize: 22, fontWeight: 600, margin: "0 0 4px" }}>
         Welkom, {user?.display_name || user?.username}
       </h1>
-      {data.streak_days > 0 && (
+      {data.streak_days > 0 ? (
         <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 20px" }}>
           🔥 {data.streak_days} {data.streak_days === 1 ? "dag" : "dagen"} op rij
         </p>
+      ) : (
+        <div style={{ marginBottom: 20 }} />
       )}
-      {data.streak_days === 0 && <div style={{ marginBottom: 20 }} />}
 
-      {data.warnings.length > 0 && (
+      {(data.warnings || []).length > 0 && (
         <div style={{ marginBottom: 8 }}>
           {data.warnings.map((w) => (
             <WarningCard key={w.id} warning={w} onDismiss={dismissWarning} />
