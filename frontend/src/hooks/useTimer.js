@@ -35,9 +35,15 @@ export function useElapsed(startedAt, paused = false) {
  * Counts DOWN from a target duration for the rest timer (White Paper §7.1).
  * Restarting resets the target timestamp rather than an interval counter,
  * so +30s/-30s adjustments and tab switches stay accurate.
+ *
+ * initialTargetAt lets a caller restore a rest timer that was already
+ * running before this hook's owning component unmounted (e.g. a tab
+ * switch away from and back to the Logger) — passing the same absolute
+ * timestamp back in means "remaining" picks up exactly where it left off
+ * instead of resetting or freezing (White Paper §7.2).
  */
-export function useCountdown() {
-  const [targetAt, setTargetAt] = useState(null);
+export function useCountdown(initialTargetAt = null) {
+  const [targetAt, setTargetAt] = useState(initialTargetAt);
   const [secondsLeft, setSecondsLeft] = useState(0);
 
   useEffect(() => {
@@ -61,7 +67,12 @@ export function useCountdown() {
 
   const stop = useCallback(() => setTargetAt(null), []);
 
-  return { secondsLeft, isRunning: !!targetAt, start, addSeconds, stop };
+  // Restores a rest timer from a persisted absolute target — used when the
+  // user explicitly resumes a draft mid-session (as opposed to the
+  // initialTargetAt param above, which only applies at first mount).
+  const restoreTarget = useCallback((ms) => setTargetAt(ms), []);
+
+  return { secondsLeft, isRunning: !!targetAt, targetAt, start, addSeconds, stop, restoreTarget };
 }
 
 export function formatMMSS(totalSeconds) {
